@@ -21,20 +21,72 @@ Ongoing since October 2026. Experimental design is complete; implementation begi
 
 | Milestone | Status |
 | --- | --- |
-| Simulator and data pipeline | Next |
+| Simulator and data pipeline | In progress |
 | Baseline JEPA and reconstruction forecaster (Stage 0) | Planned |
 | Actuation and causal structure (Stages 1, 4) | Planned |
 | Hidden structure (Stages 2, 3) | Planned |
 | Physical priors (all stages) | Planned |
 | Expectation violation (Stage 5) | Planned |
 
+## Stage-0 dataset splits
+
+Generate train, validation, test, and disjoint higher-energy challenge splits
+with recorded seeds, generation parameters, checksums, and an initial-energy
+histogram for every trajectory population:
+
+```powershell
+.venv\Scripts\python -m data.generate_stage0_splits --seed 7
+```
+
+The command writes `train.npz`, `validation.npz`, `test.npz`,
+`hard_validation.npz`, `hard_test.npz`, `manifest.json`, and
+`initial_energy_histograms.png` under `artifacts/stage0/`. Ordinary validation
+and test are independently generated from the training energy distribution;
+the hard splits use the explicitly disjoint `1.75–1.95` relative-energy band.
+Use ordinary validation for in-distribution selection, hard validation for
+declared out-of-distribution development checks, and reserve hard test for
+final reporting only.
+
+## Energy animation
+
+`examples/render_n_pendulum_energy.py` is a self-contained, one-minute Manim
+dashboard. It recalculates four unforced double-pendulum trajectories at render
+time, animates their motion, and plots their aggregate kinetic, gravitational
+potential (relative to downward rest), and total mechanical energy.
+
+```powershell
+.venv\Scripts\pip install -e .[animation]
+.venv\Scripts\manim -pql examples/render_n_pendulum_energy.py NPendulumEnergy
+```
+
+For a final 60 fps export, use `-pqh -r 1920,1080 --fps 60` in place of
+`-pql`. Change `PENDULUM_COUNT`, `PHYSICAL_SECONDS`, or `ANIMATION_SECONDS`
+near the top of the scene to tailor the clip.
+
+## Experiment tracking
+
+Stage-0 dataset generation is tracked with [MLflow](https://mlflow.org/). The
+generator records its configuration, summary energy metrics, and the generated
+archive. By default, runs are stored locally in `mlruns/`.
+The environment also includes [Optuna](https://optuna.org/) for forthcoming
+hyperparameter sweeps.
+
+```powershell
+.venv\Scripts\pip install -e .
+.venv\Scripts\python -m data.generate_stage0 --episodes 100 --seed 7
+.venv\Scripts\mlflow ui --backend-store-uri .\mlruns
+```
+
+Open `http://127.0.0.1:5000` to inspect the run. Supply `--tracking-uri` to
+use a remote tracking server, or `--no-mlflow` for an untracked generation.
+
 ## Repository structure
 
 Planned layout; directories are added as each milestone is implemented.
 
 ```
-sim/       Lagrangian n-link pendulum simulator, ground-truth export, Lyapunov spectrum
-data/      Dataset generation; splits by energy band and system parameters
+sim/       Controlled double-pendulum simulator and ground-truth export
+data/      Dataset generation, provenance manifests, and energy-band splits
 models/    JEPA (context encoder, EMA target encoder, predictor) and reconstruction baseline
 eval/      Probes, rollout metrics, Jacobian eigenvalue and Lyapunov analysis
 configs/   Experiment configurations

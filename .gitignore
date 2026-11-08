@@ -1,2 +1,12 @@
 # Unreviewed draft (citations not yet checked)
 docs/overview.md
+
+# Local Python environment and generated artifacts
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+media/
+artifacts/
+mlruns/
+*.egg-info/

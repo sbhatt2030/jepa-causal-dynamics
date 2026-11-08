@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jepa-causal-dynamics"
+version = "0.1.0"
+description = "Controlled double-pendulum simulations for latent-world-model research"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+    "mlflow>=2.16,<3",
+    "matplotlib>=3.8",
+    "numpy>=1.26",
+    "optuna>=3.6,<5",
+    "scipy>=1.13",
+]
+
+[project.optional-dependencies]
+animation = [
+    "manim>=0.18",
+]
+dev = [
+    "pytest>=8",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# The workspace can be shared between Windows identities; pytest's cache is
+# optional and may be owned by a different identity after an automated run.
+addopts = "-p no:cacheprovider"
+
+[tool.setuptools.packages.find]
+include = ["data*", "sim*"]
