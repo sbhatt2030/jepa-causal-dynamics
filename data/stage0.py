@@ -103,6 +103,48 @@ def sample_initial_states(
     return states
 
 
+def _batch_stage0_derivative(state: FloatArray, parameters: DoublePendulumParameters) -> FloatArray:
+    """Evaluate unforced Stage-0 dynamics for every episode in one array call."""
+    theta_1, theta_2, omega_1, omega_2 = state.T
+    m1, m2 = parameters.mass_1, parameters.mass_2
+    l1, l2, gravity = parameters.length_1, parameters.length_2, parameters.gravity
+    delta = theta_1 - theta_2
+    matrix_11 = (m1 + m2) * l1**2
+    matrix_12 = m2 * l1 * l2 * np.cos(delta)
+    matrix_22 = m2 * l2**2
+    rhs_1 = -m2 * l1 * l2 * np.sin(delta) * omega_2**2 - (m1 + m2) * gravity * l1 * np.sin(theta_1)
+    rhs_2 = m2 * l1 * l2 * np.sin(delta) * omega_1**2 - m2 * gravity * l2 * np.sin(theta_2)
+    determinant = matrix_11 * matrix_22 - matrix_12**2
+    acceleration_1 = (matrix_22 * rhs_1 - matrix_12 * rhs_2) / determinant
+    acceleration_2 = (matrix_11 * rhs_2 - matrix_12 * rhs_1) / determinant
+    return np.column_stack((omega_1, omega_2, acceleration_1, acceleration_2))
+
+
+def _simulate_stage0_batch(
+    initial_state: FloatArray,
+    parameters: DoublePendulumParameters,
+    integration: IntegrationConfig,
+) -> tuple[FloatArray, FloatArray]:
+    """Integrate Stage-0 episodes together with the existing fixed RK4 rule."""
+    output_indices = np.arange(0, integration.steps + 1, integration.output_stride)
+    if output_indices[-1] != integration.steps:
+        output_indices = np.append(output_indices, integration.steps)
+    state = np.array(initial_state, copy=True)
+    output = np.empty((state.shape[0], output_indices.size, 4), dtype=np.float64)
+    output[:, 0] = state
+    output_position = 1
+    for step in range(integration.steps):
+        k1 = _batch_stage0_derivative(state, parameters)
+        k2 = _batch_stage0_derivative(state + 0.5 * integration.dt * k1, parameters)
+        k3 = _batch_stage0_derivative(state + 0.5 * integration.dt * k2, parameters)
+        k4 = _batch_stage0_derivative(state + integration.dt * k3, parameters)
+        state += (integration.dt / 6.0) * (k1 + 2.0 * k2 + 2.0 * k3 + k4)
+        if output_position < output_indices.size and step + 1 == output_indices[output_position]:
+            output[:, output_position] = state
+            output_position += 1
+    return integration.dt * output_indices, output
+
+
 def generate_stage0_dataset(
     config: Stage0DatasetConfig,
     parameters: DoublePendulumParameters | None = None,
@@ -118,13 +160,8 @@ def generate_stage0_dataset(
         dt=config.dt, steps=steps, method="RK4", output_stride=config.output_stride
     )
     initial_state = sample_initial_states(config, parameters)
-    episodes = [
-        simulate_double_pendulum(state, parameters, InputSchedules(), integration)
-        for state in initial_state
-    ]
-    state = np.stack([episode.state for episode in episodes])
-    inputs = np.stack([episode.inputs for episode in episodes])
-    time = episodes[0].time
+    time, state = _simulate_stage0_batch(initial_state, parameters, integration)
+    inputs = np.zeros((*state.shape[:2], 2), dtype=np.float64)
     return {
         "time": time,
         "state": state,

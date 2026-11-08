@@ -80,6 +80,9 @@ hyperparameter sweeps.
 Open `http://127.0.0.1:5000` to inspect the run. Supply `--tracking-uri` to
 use a remote tracking server, or `--no-mlflow` for an untracked generation.
 
+The manifest selects the archive loaded by training. Context and target windows
+are views into canonical episode arrays, not copied rows in a window table.
+
 ## Repository structure
 
 Planned layout; directories are added as each milestone is implemented.
